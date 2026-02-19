@@ -1,10 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
+  const [data, setData] = useState({})
+
+  useEffect(() => {
+    fetch("/forecast").then(
+      res => res.json()
+    ).then(
+      data => {
+        setData(data)
+        console.log(data[0])
+      }
+    )
+  }, [])
 
   return (
     <>
