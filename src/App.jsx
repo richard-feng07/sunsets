@@ -2,20 +2,19 @@ import { useEffect, useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
+import axios from 'axios'
 
 function App() {
   const [count, setCount] = useState(0)
-  const [data, setData] = useState({})
+  const [array, setArray] = useState([])
+
+  const fetchAPI = async () => {
+    const response = await axios.get("http://127.0.0.1:8000/prediction")
+    console.log(response.data[0]["02/19 05:21 PM"])
+  }
 
   useEffect(() => {
-    fetch("/forecast").then(
-      res => res.json()
-    ).then(
-      data => {
-        setData(data)
-        console.log(data[0])
-      }
-    )
+    fetchAPI()
   }, [])
 
   return (
@@ -34,7 +33,11 @@ function App() {
           count is {count}
         </button>
         <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
+          {/* {
+            array.map((day, index) => (
+              <span key={index}>{day}</span>
+            ))
+          } */}
         </p>
       </div>
       <p className="read-the-docs">
