@@ -112,7 +112,6 @@ class SunsetStructure:
                                     }
                                 ]
                             },
-                            cat=cat,
                         )
         return good_sunsets
 
