@@ -8,12 +8,11 @@ function App() {
   const [data, setData] = useState({})
 
   useEffect(() => {
-    fetch("/forecast").then(
+    fetch("http://127.0.0.1:5000/prediction").then(
       res => res.json()
     ).then(
       data => {
         setData(data)
-        console.log(data[0])
       }
     )
   }, [])
