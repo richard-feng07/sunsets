@@ -136,10 +136,10 @@ url: str = (
     "https://api.tomorrow.io/v4/weather/forecast?location=irvine%20ca&units=imperial&apikey="
 )
 
-s = SunsetStructure(path='./src/testing.json')
-s.fill_sunset_times()
-s.fill_weather()
-print(s.get_forecast())
+# s = SunsetStructure(path='./src/testing.json')
+# s.fill_sunset_times()
+# s.fill_weather()
+# print(s.get_forecast())
 @app.route("/prediction", methods=["GET"])
 def prediction():
     try:
