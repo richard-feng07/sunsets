@@ -27,6 +27,18 @@ class SunsetStructure:
         "windGust" : 15
     }
 
+    UNITS: dict[str, str] = {
+    "cloudCover": "%", "cloudBase": "km", "humidity": "%",
+    "visibility": "km", "dewpoint": "°F", "windSpeed": "mph", "windGust": "mph",
+    }
+
+    LABELS: dict[str, str] = {
+        "cloudCover": "cloud cover", "cloudBase": "cloud base", "humidity": "humidity",
+        "visibility": "visibility", "dewpoint": "dew point",
+        "windSpeed": "wind speed", "windGust": "wind gust",
+    }
+
+
     def __init__(self, url: Optional[str] = None, path: Optional[str] = None):
         if url is None and path is None:
             raise ValueError("Must provide either url or path")
@@ -39,6 +51,8 @@ class SunsetStructure:
             with open(path, "r") as file:
                 self.data = json.load(file)
         self.sunsets: dict[str, list[Any]] = {}
+        self.forecast = []
+        self.threshold = 0.8
 
     def fill_sunset_times(self):
         for i in range(len(self.data["timelines"]["daily"])):
@@ -46,12 +60,12 @@ class SunsetStructure:
             exact_sunset = (
                 datetime.fromisoformat(today_sunset.replace("Z", "+00:00"))
                 .astimezone()
-                .strftime("%m/%d %I:%M %p")
+                .strftime("%-m/%-d %-I:%M %p")
             )
             hourly_sunset = (
                 datetime.fromisoformat((today_sunset[0:14] + "00:00+00:00"))
                 .astimezone()
-                .strftime("%m/%d %I:%M %p")
+                .strftime("%-m/%-d %-I:%M %p")
             )
             self.sunsets[today_sunset] = [exact_sunset, hourly_sunset]
 
@@ -82,10 +96,16 @@ class SunsetStructure:
             self.sunsets.popitem()
 
     def get_forecast(self):
-        good_sunsets: list[dict] = []
+        for date in self.sunsets:
+            self.forecast.append({
+                "timestamp" : date,
+                "label" : self.sunsets[date][0],
+                "score" : 0,
+                "readings" : []
+            })
         for date in self.sunsets:
             entry = self.sunsets[date]
-
+            current = next(f for f in self.forecast if f["timestamp"] == date)
             if entry[2] is None or entry[3] is None:
                 continue
 
@@ -107,23 +127,16 @@ class SunsetStructure:
                     category=cat,
                     sunsets=entry,
                 )
-                if helpers.relative_error(avg, self.DESIRED[cat]) < 0.8:
-                    ph.check_payload_dupes(
-                        good_sunsets,
-                        {
-                            entry[0]: [
-                                {
-                                    "category": cat,
-                                    "real": v0,
-                                    "desired": self.DESIRED[cat],
-                                }
-                            ]
-                        },
-                    )
-            for i in range(len(good_sunsets)):
-                date = next(iter(good_sunsets[i]))
-                good_sunsets[i]['score'] = len(good_sunsets[i][date])
-        return good_sunsets
+                current['readings'].append({
+                    "category" : cat,
+                    "label" : self.LABELS[cat],
+                    "real" : avg,
+                    "desired" : self.DESIRED[cat],
+                    "unit" : self.UNITS[cat],
+                    "met" : helpers.relative_error(avg, self.DESIRED[cat]) < self.threshold
+                })
+            current["score"] = sum(r["met"] for r in current["readings"])
+        return self.forecast
 
     def get_sunsets(self):
         return self.sunsets
