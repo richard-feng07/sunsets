@@ -4,10 +4,10 @@ import requests
 import json
 from datetime import datetime, timedelta
 from typing import Any, Optional
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 import helpers
-import payload_helpers as ph
+from urllib.parse import quote
 
 app = Flask(__name__)
 cors = CORS(app, origins="*")
@@ -19,22 +19,21 @@ class SunsetStructure:
 
     DESIRED: dict[str, float] = {
         "cloudCover": 30,
-        "cloudBase": 3.5,
         "humidity": 45,
-        "visibility": 10,
-        "dewpoint" : 45,
+        "visibility": 9,
+        "dewPoint" : 45,
         "windSpeed" : 8,
         "windGust" : 15
     }
 
     UNITS: dict[str, str] = {
-    "cloudCover": "%", "cloudBase": "km", "humidity": "%",
-    "visibility": "km", "dewpoint": "°F", "windSpeed": "mph", "windGust": "mph",
+    "cloudCover": "%", "humidity": "%",
+    "visibility": "mi", "dewPoint": "°F", "windSpeed": "mph", "windGust": "mph",
     }
 
     LABELS: dict[str, str] = {
-        "cloudCover": "cloud cover", "cloudBase": "cloud base", "humidity": "humidity",
-        "visibility": "visibility", "dewpoint": "dew point",
+        "cloudCover": "cloud cover", "humidity": "humidity",
+        "visibility": "visibility", "dewPoint": "dew point",
         "windSpeed": "wind speed", "windGust": "wind gust",
     }
 
@@ -96,6 +95,7 @@ class SunsetStructure:
             self.sunsets.popitem()
 
     def get_forecast(self):
+        self.forecast = []
         for date in self.sunsets:
             self.forecast.append({
                 "timestamp" : date,
@@ -130,7 +130,7 @@ class SunsetStructure:
                 current['readings'].append({
                     "category" : cat,
                     "label" : self.LABELS[cat],
-                    "real" : avg,
+                    "real" : round(avg, 1),
                     "desired" : self.DESIRED[cat],
                     "unit" : self.UNITS[cat],
                     "met" : helpers.relative_error(avg, self.DESIRED[cat]) < self.threshold
@@ -144,23 +144,25 @@ class SunsetStructure:
     def get_data(self):
         return self.data
 
-
-url: str = (
-    "https://api.tomorrow.io/v4/weather/forecast?location=irvine%20ca&units=imperial&apikey="
-)
-
-# s = SunsetStructure(path='./src/testing.json')
-# s.fill_sunset_times()
-# s.fill_weather()
-# print(s.get_forecast())
 @app.route("/prediction", methods=["GET"])
 def prediction():
+    location = request.args.get("location", "").strip()
+    if not location:
+        return {"error": "Please enter a valid location"}, 400
+    print(location)
     try:
-        s = SunsetStructure(path='./src/testing.json')
+        if location == "mock":
+            s = SunsetStructure(path='./src/testing.json')
+        else:
+            api_url = (
+                "https://api.tomorrow.io/v4/weather/forecast"
+                f"?location={quote(location)}&units=imperial&apikey="
+            )
+            s = SunsetStructure(url=api_url)
         s.fill_sunset_times()
         s.fill_weather()
         return s.get_forecast()
-    except (KeyError, ValueError) as e:
+    except (KeyError, ValueError, FileNotFoundError, requests.RequestException) as e:
         return {"error": "unexpected response shape", "detail": str(e)}, 502
 
 if __name__ == "__main__":
