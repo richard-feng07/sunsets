@@ -149,19 +149,19 @@ url: str = (
     "https://api.tomorrow.io/v4/weather/forecast?location=irvine%20ca&units=imperial&apikey="
 )
 
-s = SunsetStructure(url=url)
-s.fill_sunset_times()
-s.fill_weather()
-print(s.get_forecast())
-# @app.route("/prediction", methods=["GET"])
-# def prediction():
-#     try:
-#         s = SunsetStructure(url=url)
-#         s.fill_sunset_times()
-#         s.fill_weather()
-#         return s.get_forecast()
-#     except (KeyError, ValueError) as e:
-#         return {"error": "unexpected response shape", "detail": str(e)}, 502
+# s = SunsetStructure(path='./src/testing.json')
+# s.fill_sunset_times()
+# s.fill_weather()
+# print(s.get_forecast())
+@app.route("/prediction", methods=["GET"])
+def prediction():
+    try:
+        s = SunsetStructure(path='./src/testing.json')
+        s.fill_sunset_times()
+        s.fill_weather()
+        return s.get_forecast()
+    except (KeyError, ValueError) as e:
+        return {"error": "unexpected response shape", "detail": str(e)}, 502
 
-# if __name__ == "__main__":
-#     app.run()
+if __name__ == "__main__":
+    app.run()
