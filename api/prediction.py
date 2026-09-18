@@ -1,4 +1,5 @@
 import os
+import sys
 from dotenv import load_dotenv
 import requests
 import json
@@ -7,6 +8,7 @@ from zoneinfo import ZoneInfo
 from tzfpy import get_tz
 from typing import Any, Optional
 from flask import Flask, request
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import _helpers as helpers
 from urllib.parse import quote
 
@@ -161,7 +163,6 @@ def prediction():
     location = request.args.get("location", "").strip()
     if not location:
         return {"error": "Please enter a valid location"}, 400
-    print(location)
     try:
         if location == "mock":
             s = SunsetStructure(path=MOCK_FIXTURE, query="Irvine, California")
