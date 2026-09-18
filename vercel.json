@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/prediction.py": {
+      "maxDuration": 30,
+      "includeFiles": "api/_testing.json"
+    }
+  }
+}

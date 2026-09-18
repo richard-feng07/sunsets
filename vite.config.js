@@ -7,8 +7,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/forecast': {
-        target: 'http://localhost:8000', // Your backend URL
+      '/api': {
+        target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       }
     }

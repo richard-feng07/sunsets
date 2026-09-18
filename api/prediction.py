@@ -3,16 +3,18 @@ from dotenv import load_dotenv
 import requests
 import json
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+from tzfpy import get_tz
 from typing import Any, Optional
 from flask import Flask, request
-from flask_cors import CORS
-import helpers
+import _helpers as helpers
 from urllib.parse import quote
 
 app = Flask(__name__)
-cors = CORS(app, origins="*")
 
 load_dotenv(override=True)
+
+MOCK_FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_testing.json")
 
 
 class SunsetStructure:
@@ -38,35 +40,44 @@ class SunsetStructure:
     }
 
 
-    def __init__(self, url: Optional[str] = None, path: Optional[str] = None):
+    def __init__(self, url: Optional[str] = None, path: Optional[str] = None, query: str = ""):
         if url is None and path is None:
             raise ValueError("Must provide either url or path")
         if url is not None and path is not None:
             raise ValueError("Provide only one of url or path")
         if url is not None:
             url += os.environ["API_KEY"]
-            self.data = requests.get(url=url).json()
+            response = requests.get(url=url, timeout=20)
+            self.data = response.json()
+            if not response.ok:
+                raise ValueError(
+                    self.data.get("message") or "the forecast service rejected that location"
+                )
         else:
             with open(path, "r") as file:
                 self.data = json.load(file)
+        lat = self.data["location"]["lat"]
+        lon = self.data["location"]["lon"]
+        self.location = helpers.format_place(self.data["location"].get("name"), query)
+        self.tz = ZoneInfo(get_tz(lon, lat))
         self.sunsets: dict[str, list[Any]] = {}
         self.forecast = []
-        self.threshold = 0.8
+        self.threshold = 0.3
 
     def fill_sunset_times(self):
         for i in range(len(self.data["timelines"]["daily"])):
             today_sunset = self.data["timelines"]["daily"][i]["values"]["sunsetTime"]
-            exact_sunset = (
+            dt_local = (
                 datetime.fromisoformat(today_sunset.replace("Z", "+00:00"))
-                .astimezone()
-                .strftime("%-m/%-d %-I:%M %p")
+                .astimezone(self.tz)
             )
+            exact_sunset = dt_local.strftime("%-m/%-d %-I:%M %p")
             hourly_sunset = (
                 datetime.fromisoformat((today_sunset[0:14] + "00:00+00:00"))
-                .astimezone()
+                .astimezone(self.tz)
                 .strftime("%-m/%-d %-I:%M %p")
             )
-            self.sunsets[today_sunset] = [exact_sunset, hourly_sunset]
+            self.sunsets[today_sunset] = [exact_sunset, hourly_sunset, dt_local]
 
     def fill_weather(self):
         """
@@ -106,11 +117,11 @@ class SunsetStructure:
         for date in self.sunsets:
             entry = self.sunsets[date]
             current = next(f for f in self.forecast if f["timestamp"] == date)
-            if entry[2] is None or entry[3] is None:
+            if entry[3] is None or entry[4] is None:
                 continue
 
-            values_h0 = entry[2]["values"]
-            values_h1 = entry[3]["values"]
+            values_h0 = entry[3]["values"]
+            values_h1 = entry[4]["values"]
 
             for cat in values_h0:
                 if cat not in self.DESIRED:
@@ -123,7 +134,7 @@ class SunsetStructure:
                     continue
 
                 avg = helpers.get_sunset_time_average(
-                    minutes=datetime.strptime(entry[0], "%m/%d %I:%M %p").minute,
+                    minutes=entry[2].minute,
                     category=cat,
                     sunsets=entry,
                 )
@@ -136,7 +147,7 @@ class SunsetStructure:
                     "met" : helpers.relative_error(avg, self.DESIRED[cat]) < self.threshold
                 })
             current["score"] = sum(r["met"] for r in current["readings"])
-        return self.forecast
+        return {"place" : self.location, "data" : self.forecast}
 
     def get_sunsets(self):
         return self.sunsets
@@ -144,6 +155,7 @@ class SunsetStructure:
     def get_data(self):
         return self.data
 
+@app.route("/api/prediction", methods=["GET"])
 @app.route("/prediction", methods=["GET"])
 def prediction():
     location = request.args.get("location", "").strip()
@@ -152,17 +164,19 @@ def prediction():
     print(location)
     try:
         if location == "mock":
-            s = SunsetStructure(path='./src/testing.json')
+            s = SunsetStructure(path=MOCK_FIXTURE, query="Irvine, California")
         else:
             api_url = (
                 "https://api.tomorrow.io/v4/weather/forecast"
                 f"?location={quote(location)}&units=imperial&apikey="
             )
-            s = SunsetStructure(url=api_url)
+            s = SunsetStructure(url=api_url, query=location)
         s.fill_sunset_times()
         s.fill_weather()
         return s.get_forecast()
-    except (KeyError, ValueError, FileNotFoundError, requests.RequestException) as e:
+    except ValueError as e:
+        return {"error": str(e)}, 502
+    except (KeyError, FileNotFoundError, requests.RequestException) as e:
         return {"error": "unexpected response shape", "detail": str(e)}, 502
 
 if __name__ == "__main__":
