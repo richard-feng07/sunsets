@@ -44,6 +44,7 @@ function App() {
 
     try{
       const params = new URLSearchParams({location : query})
+      window.history.pushState(null, "", `?${params}`)
       const res = await fetch(`/api/prediction?${params}`)
       const json = await res.json()
       if(!res.ok)throw new Error(json.error ?? "Couldn't reach the forecast")
